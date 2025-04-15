@@ -72,6 +72,38 @@ export class SchemaProcessor {
       return resolvedType;
   }
 
+  private getZobObject(node) {
+      const zodProperties = node.properties;
+      let properties = {};
+      zodProperties.forEach(property => {
+          const fieldName = property.key.name;
+          let identifiers = [];
+          let currIden = property.value.callee;
+          let prevIden = currIden;
+          do {
+              identifiers.push(currIden.property.name);
+              prevIden = currIden;
+              currIden = currIden.object.callee;
+          } while (prevIden?.object?.name !== 'z');
+          properties[fieldName] = this.resolveZodType(identifiers);
+      });
+      return { type: "object", properties };
+  }
+
+  private getZodArray(node) {
+      return { type: "array", items: this.getZodObjectOrArray(node.arguments[0]) };
+  }
+
+  private getZodObjectOrArray(node) {
+      if(!!node.properties) {
+          return this.getZobObject(node);
+      }
+      else if (!!node.arguments) {
+          return this.getZodArray(node);
+      }
+
+  }
+
   private collectTypeDefinitions(ast, schemaName) {
     if (!!this.typeDefinitions[schemaName]) return;
     traverse.default(ast, {
@@ -81,22 +113,7 @@ export class SchemaProcessor {
           this.typeDefinitions[name] = path.node.init || path.node;
         }
         if (path.node.id.name === `${schemaName}Schema`) {
-            const zodObject = path.node;
-            const zodProperties = zodObject.init.arguments[0].properties;
-            let properties = {};
-            zodProperties.forEach(property => {
-                const fieldName = property.key.name;
-                let identifiers = [];
-                let currIden = property.value.callee;
-                let prevIden = currIden;
-                do {
-                    identifiers.push(currIden.property.name);
-                    prevIden = currIden;
-                    currIden = currIden.object.callee;
-                } while (prevIden?.object?.name !== 'z');
-                properties[fieldName] = this.resolveZodType(identifiers);
-                this.typeDefinitions[schemaName] = { type: "object", properties };
-            });
+            this.typeDefinitions[schemaName] = this.getZodObjectOrArray(path.node.init.arguments[0]);
         }
       },
       TSTypeAliasDeclaration: (path) => {
