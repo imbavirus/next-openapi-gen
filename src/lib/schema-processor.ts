@@ -80,8 +80,8 @@ export class SchemaProcessor {
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node.init || path.node;
         }
-        if (path.node.kind === 'const' && path.node.declarations[0].id.name === `${schemaName}Schema`) {
-            const zodObject = path.node.declarations[0];
+        if (path.node.id.name === `${schemaName}Schema`) {
+            const zodObject = path.node;
             const zodProperties = zodObject.init.arguments[0].properties;
             let properties = {};
             zodProperties.forEach(property => {
@@ -100,7 +100,7 @@ export class SchemaProcessor {
         }
       },
       TSTypeAliasDeclaration: (path) => {
-        if (t.isIdentifier(path.node.id, { name: schemaName })) {
+        if (t.isIdentifier(path.node.id, { name: schemaName }) && path.node.typeAnnotation?.typeName?.right?.name !== 'infer') {
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node.typeAnnotation;
         }
