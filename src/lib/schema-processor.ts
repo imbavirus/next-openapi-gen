@@ -219,18 +219,20 @@ export class SchemaProcessor {
 
   private processSchemaFile(filePath: string, schemaName: string) {
     // Recognizes different elements of TS like variable, type, interface, enum
-    const content = fs.readFileSync(filePath, "utf-8");
-    const ast = parse(content, {
-      sourceType: "module",
-      plugins: ["typescript", "decorators-legacy"],
-    });
+    if (filePath.endsWith(`${schemaName}.ts`)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const ast = parse(content, {
+        sourceType: "module",
+        plugins: ["typescript", "decorators-legacy"],
+      });
 
-    this.collectTypeDefinitions(ast, schemaName);
+      this.collectTypeDefinitions(ast, schemaName);
 
-    const definition = this.resolveType(schemaName);
-    this.openapiDefinitions[schemaName] = definition;
+      const definition = this.resolveType(schemaName);
+      this.openapiDefinitions[schemaName] = definition;
 
-    return definition;
+      return definition;
+    }
   }
 
   private processEnum(enumNode: t.TSEnumDeclaration): object {
