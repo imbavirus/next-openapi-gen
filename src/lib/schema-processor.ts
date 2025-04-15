@@ -42,12 +42,61 @@ export class SchemaProcessor {
     });
   }
 
+  private resolveZodType(identifiers) {
+      let resolvedType = {};
+      identifiers.forEach(identifier => {
+          switch (identifier) {
+              case "string":
+                  resolvedType = { ...resolvedType, type: "string" };
+                  break;
+              case "number":
+                  resolvedType = { ...resolvedType, type: "number" };
+                  break;
+              case "boolean":
+                  resolvedType = { ...resolvedType, type: "boolean" };
+                  break;
+              case "array":
+                  resolvedType = {
+                      ...resolvedType,
+                      type: "array",
+                      items: this.resolveZodType([]), // Assuming no nested identifiers for simplicity
+                  };
+                  break;
+              case "nullable":
+                  resolvedType = { ...resolvedType, nullable: true };
+                  break;
+              default:
+                  break;
+          }
+      });
+      return resolvedType;
+  }
+
   private collectTypeDefinitions(ast, schemaName) {
+    if (!!this.typeDefinitions[schemaName]) return;
     traverse.default(ast, {
       VariableDeclarator: (path) => {
         if (t.isIdentifier(path.node.id, { name: schemaName })) {
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node.init || path.node;
+        }
+        if (path.node.kind === 'const' && path.node.declarations[0].id.name === `${schemaName}Schema`) {
+            const zodObject = path.node.declarations[0];
+            const zodProperties = zodObject.init.arguments[0].properties;
+            let properties = {};
+            zodProperties.forEach(property => {
+                const fieldName = property.key.name;
+                let identifiers = [];
+                let currIden = property.value.callee;
+                let prevIden = currIden;
+                do {
+                    identifiers.push(currIden.property.name);
+                    prevIden = currIden;
+                    currIden = currIden.object.callee;
+                } while (prevIden?.object?.name !== 'z');
+                properties[fieldName] = this.resolveZodType(identifiers);
+                this.typeDefinitions[schemaName] = { type: "object", properties };
+            });
         }
       },
       TSTypeAliasDeclaration: (path) => {
@@ -69,6 +118,10 @@ export class SchemaProcessor {
         }
       },
     });
+  }
+
+  private isObjectType(node) {
+      return node?.type === 'object';
   }
 
   private resolveType(typeName: string) {
@@ -107,6 +160,9 @@ export class SchemaProcessor {
         type: "array",
         items: this.resolveTSNodeType(typeNode.elementType),
       };
+    }
+    if (this.isObjectType(typeNode)) {
+        return typeNode;
     }
 
     return {};
