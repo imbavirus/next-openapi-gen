@@ -4,9 +4,9 @@ import path from "path";
 import traverse from "@babel/traverse";
 import { parse } from "@babel/parser";
 
-import { SchemaProcessor } from "./schema-processor.js";
+import { SchemaProcessor } from "./schema-processor";
 import { capitalize, extractJSDocComments, getOperationId } from "./utils.js";
-import { DataTypes, OpenApiConfig, RouteDefinition } from "../types.js";
+import { DataTypes, OpenApiConfig } from "../types";
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 const MUTATION_HTTP_METHODS = ["PATCH", "POST", "PUT"];
@@ -15,6 +15,7 @@ export class RouteProcessor {
   private swaggerPaths: Record<string, any> = {};
   private schemaProcessor: SchemaProcessor;
   private config: OpenApiConfig;
+  private paths: Record<string, any> = {};
 
   constructor(config: OpenApiConfig) {
     this.config = config;
@@ -72,7 +73,6 @@ export class RouteProcessor {
 
       if (stat.isDirectory()) {
         this.scanApiRoutes(filePath);
-        // @ts-ignore
       } else if (file.endsWith(".ts")) {
         this.processFile(filePath);
       }
@@ -88,7 +88,7 @@ export class RouteProcessor {
     const routePath = this.getRoutePath(filePath);
     const rootPath = capitalize(routePath.split("/")[1]);
     const operationId = getOperationId(routePath, method);
-    const { summary, description, auth, isOpenApi } = dataTypes;
+    const { summary, description, auth, isOpenApi, paramsType, bodyType, responseType } = dataTypes;
 
     if (this.config.includeOpenApiRoutes && !isOpenApi) {
       // If flag is enabled and there is no @openapi tag, then skip path
@@ -99,14 +99,28 @@ export class RouteProcessor {
       this.swaggerPaths[routePath] = {};
     }
 
-    const { params, body, responses } =
-      this.schemaProcessor.getSchemaContent(dataTypes);
+    // Get schema content
+    const schemaContent = this.schemaProcessor.getSchemaContent({
+      paramsType,
+      bodyType,
+      responseType,
+    });
 
-    const definition: RouteDefinition = {
+    // Parameters
+    let parameters: any[] = [];
+    if (schemaContent.params && schemaContent.params.properties) {
+      parameters = Object.values(schemaContent.params.properties);
+    }
+
+    // Build the operation definition
+    const definition: any = {
       operationId: operationId,
-      summary: summary,
-      description: description,
+      summary: summary || `${method.toUpperCase()} ${routePath}`,
+      description: description || `Endpoint for ${method.toUpperCase()} ${routePath}`,
       tags: [rootPath],
+      parameters,
+      requestBody: schemaContent.requestBody,
+      responses: schemaContent.responses,
     };
 
     // Add auth
@@ -117,22 +131,6 @@ export class RouteProcessor {
         },
       ];
     }
-
-    if (params) {
-      definition.parameters =
-        this.schemaProcessor.createRequestParamsSchema(params);
-    }
-
-    // Add request body
-    if (MUTATION_HTTP_METHODS.includes(method.toUpperCase())) {
-      definition.requestBody =
-        this.schemaProcessor.createRequestBodySchema(body);
-    }
-
-    // Add responses
-    definition.responses = responses
-      ? this.schemaProcessor.createResponseSchema(responses)
-      : {};
 
     this.swaggerPaths[routePath][method] = definition;
   }
@@ -180,14 +178,12 @@ export class RouteProcessor {
       .sort(comparePaths.bind(this))
       .reduce((sorted, key) => {
         sorted[key] = paths[key];
-
         return sorted;
       }, {});
   }
 
   public getSwaggerPaths() {
     const paths = this.getSortedPaths(this.swaggerPaths);
-
     return this.getSortedPaths(paths);
   }
 }
