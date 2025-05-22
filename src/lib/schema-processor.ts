@@ -116,7 +116,9 @@ export class SchemaProcessor {
     // Try to find schema with Schema suffix
     if (this.processedSchemas.has(schemaNameWithSuffix)) {
       console.log('✅ Found schema reference:', schemaNameWithSuffix);
-      return this.openapiDefinitions[schemaNameWithSuffix];
+      const schema = this.openapiDefinitions[schemaNameWithSuffix];
+      console.log('📄 Schema content:', schema);
+      return schema;
     }
     
     // If we haven't processed this schema yet, process it
@@ -126,7 +128,9 @@ export class SchemaProcessor {
     // Try again after processing
     if (this.processedSchemas.has(schemaNameWithSuffix)) {
       console.log('✅ Found schema reference after processing:', schemaNameWithSuffix);
-      return this.openapiDefinitions[schemaNameWithSuffix];
+      const schema = this.openapiDefinitions[schemaNameWithSuffix];
+      console.log('📄 Schema content:', schema);
+      return schema;
     }
 
     console.log('❌ Schema reference not found:', schemaNameWithSuffix);
@@ -245,6 +249,7 @@ export class SchemaProcessor {
             console.log('📚 Found schema reference in array items:', refSchemaName);
             const refSchema = this.getSchemaReference(refSchemaName);
             if (refSchema) {
+              console.log('✅ Using referenced schema for array items:', refSchema);
               schema = {
                 type: "array",
                 items: refSchema
@@ -261,6 +266,7 @@ export class SchemaProcessor {
             console.log('📚 Found schema reference in array items:', refSchemaName);
             const refSchema = this.getSchemaReference(refSchemaName);
             if (refSchema) {
+              console.log('✅ Using referenced schema for array items:', refSchema);
               schema = {
                 type: "array",
                 items: refSchema
@@ -273,9 +279,11 @@ export class SchemaProcessor {
               };
             }
           } else {
+            const itemsSchema = this.processZodType(node.arguments?.[0]);
+            console.log('✅ Using processed schema for array items:', itemsSchema);
             schema = {
               type: "array",
-              items: this.processZodType(node.arguments?.[0])
+              items: itemsSchema
             };
           }
           if (node.arguments?.[1]) {
@@ -554,6 +562,7 @@ export class SchemaProcessor {
       console.log('📚 Found direct schema reference:', schemaName);
       const referencedSchema = this.getSchemaReference(schemaName);
       if (referencedSchema) {
+        console.log('✅ Using referenced schema:', referencedSchema);
         return referencedSchema;
       }
     }
