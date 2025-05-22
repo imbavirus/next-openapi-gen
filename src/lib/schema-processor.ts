@@ -36,14 +36,16 @@ interface OpenAPISchema {
 export class SchemaProcessor {
   private schemaDir: string;
   private typeDefinitions: any = {};
-  private openapiDefinitions: any = {};
+  private openapiDefinitions: Record<string, OpenAPISchema> = {};
   private contentType: string = "";
+  private processedSchemas: Set<string> = new Set();
 
   constructor(schemaDir: string) {
     this.schemaDir = path.resolve(schemaDir);
   }
 
   public findSchemaDefinition(schemaName: string, contentType: string) {
+    console.log('🔎 Finding schema definition:', schemaName);
     let schemaNode: t.Node | null = null;
     this.contentType = contentType;
     this.scanSchemaDir(this.schemaDir, schemaName);
@@ -61,6 +63,45 @@ export class SchemaProcessor {
         this.processSchemaFile(filePath, schemaName);
       }
     });
+  }
+
+  private processSchemaFile(filePath: string, schemaName: string) {
+    console.log('📄 Processing schema file:', filePath);
+    if (filePath.endsWith(`${schemaName}.ts`)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const ast = parse(content, {
+        sourceType: "module",
+        plugins: ["typescript", "decorators-legacy"],
+      });
+
+      this.collectTypeDefinitions(ast, schemaName);
+
+      const definition = this.resolveType(schemaName);
+      if (definition) {
+        console.log('💾 Storing schema definition for:', schemaName);
+        this.openapiDefinitions[schemaName] = definition;
+        this.processedSchemas.add(schemaName);
+      }
+    }
+  }
+
+  private getSchemaReference(schemaName: string): OpenAPISchema | undefined {
+    console.log('🔍 Getting schema reference:', schemaName);
+    
+    // If we haven't processed this schema yet, process it
+    if (!this.processedSchemas.has(schemaName)) {
+      console.log('🔄 Schema not yet processed, processing now:', schemaName);
+      this.findSchemaDefinition(schemaName, this.contentType);
+    }
+
+    const schema = this.openapiDefinitions[schemaName];
+    if (schema) {
+      console.log('✅ Found schema reference:', schemaName);
+      return schema;
+    } else {
+      console.log('❌ Schema reference not found:', schemaName);
+      return undefined;
+    }
   }
 
   private processZodType(node: any): OpenAPISchema {
@@ -81,14 +122,9 @@ export class SchemaProcessor {
     if (node.callee?.name && node.callee.name.endsWith('Schema')) {
       const schemaName = node.callee.name;
       console.log('📚 Found schema reference:', schemaName);
-      // Find and process the referenced schema
-      this.findSchemaDefinition(schemaName, this.contentType);
-      const referencedSchema = this.openapiDefinitions[schemaName];
+      const referencedSchema = this.getSchemaReference(schemaName);
       if (referencedSchema) {
-        console.log('✅ Successfully resolved schema reference:', schemaName);
         return referencedSchema;
-      } else {
-        console.log('❌ Failed to resolve schema reference:', schemaName);
       }
     }
 
@@ -131,16 +167,13 @@ export class SchemaProcessor {
           if (node.arguments?.[0]?.name?.endsWith('Schema')) {
             const refSchemaName = node.arguments[0].name;
             console.log('📚 Found schema reference in array items:', refSchemaName);
-            this.findSchemaDefinition(refSchemaName, this.contentType);
-            const refSchema = this.openapiDefinitions[refSchemaName];
+            const refSchema = this.getSchemaReference(refSchemaName);
             if (refSchema) {
-              console.log('✅ Resolved schema reference in array items:', refSchemaName);
               schema = {
                 type: "array",
                 items: refSchema
               };
             } else {
-              console.log('❌ Failed to resolve schema reference in array items:', refSchemaName);
               schema = {
                 type: "array",
                 items: this.processZodType(node.arguments?.[0])
@@ -246,14 +279,7 @@ export class SchemaProcessor {
               if (property.value?.callee?.name?.endsWith('Schema')) {
                 const refSchemaName = property.value.callee.name;
                 console.log('📚 Found nested schema reference:', refSchemaName);
-                this.findSchemaDefinition(refSchemaName, this.contentType);
-                const refSchema = this.openapiDefinitions[refSchemaName];
-                if (refSchema) {
-                  console.log('✅ Resolved nested schema reference:', refSchemaName);
-                  schema.properties[property.key.name] = refSchema;
-                } else {
-                  console.log('❌ Failed to resolve nested schema reference:', refSchemaName);
-                }
+                this.getSchemaReference(refSchemaName);
               }
             });
           }
@@ -433,13 +459,9 @@ export class SchemaProcessor {
     if (node.name?.endsWith('Schema')) {
       const schemaName = node.name;
       console.log('📚 Found direct schema reference:', schemaName);
-      this.findSchemaDefinition(schemaName, this.contentType);
-      const referencedSchema = this.openapiDefinitions[schemaName];
+      const referencedSchema = this.getSchemaReference(schemaName);
       if (referencedSchema) {
-        console.log('✅ Successfully resolved direct schema reference:', schemaName);
         return referencedSchema;
-      } else {
-        console.log('❌ Failed to resolve direct schema reference:', schemaName);
       }
     }
 
@@ -474,14 +496,7 @@ export class SchemaProcessor {
       if (zodType?.callee?.name?.endsWith('Schema')) {
         const refSchemaName = zodType.callee.name;
         console.log('📚 Found schema reference in property:', refSchemaName);
-        this.findSchemaDefinition(refSchemaName, this.contentType);
-        const refSchema = this.openapiDefinitions[refSchemaName];
-        if (refSchema) {
-          console.log('✅ Resolved schema reference in property:', refSchemaName);
-          schema = refSchema;
-        } else {
-          console.log('❌ Failed to resolve schema reference in property:', refSchemaName);
-        }
+        this.getSchemaReference(refSchemaName);
       }
       
       // Handle optional/required
@@ -656,24 +671,6 @@ export class SchemaProcessor {
     console.warn("Unrecognized TypeScript type node:", node);
 
     return {};
-  }
-
-  private processSchemaFile(filePath: string, schemaName: string) {
-    // Recognizes different elements of TS like variable, type, interface, enum
-    if (filePath.endsWith(`${schemaName}.ts`)) {
-      const content = fs.readFileSync(filePath, "utf-8");
-      const ast = parse(content, {
-        sourceType: "module",
-        plugins: ["typescript", "decorators-legacy"],
-      });
-
-      this.collectTypeDefinitions(ast, schemaName);
-
-      const definition = this.resolveType(schemaName);
-      this.openapiDefinitions[schemaName] = definition;
-
-      return definition;
-    }
   }
 
   private processEnum(enumNode: t.TSEnumDeclaration): object {
