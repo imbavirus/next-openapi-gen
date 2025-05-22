@@ -75,6 +75,13 @@ export class SchemaProcessor {
 
   private processSchemaFile(filePath: string, schemaName: string) {
     console.log('📄 Processing schema file:', filePath);
+    
+    // Skip empty schema names
+    if (!schemaName) {
+      console.log('⚠️ Skipping empty schema name');
+      return;
+    }
+
     // Ensure schema name has Schema suffix
     const schemaNameWithSuffix = schemaName.endsWith('Schema') ? schemaName : `${schemaName}Schema`;
     
@@ -196,9 +203,10 @@ export class SchemaProcessor {
                 items: refSchema
               };
             } else {
+              console.log('⚠️ Could not resolve array items schema:', refSchemaName);
               schema = {
                 type: "array",
-                items: this.processZodType(node.arguments?.[0])
+                items: {}
               };
             }
           } else {
