@@ -783,14 +783,20 @@ export class SchemaProcessor {
     console.log('🔍 Getting schema content for:', { paramsType, bodyType, responseType });
     
     // Process all schemas first
-    this.findSchemaDefinition(paramsType, "params");
-    this.findSchemaDefinition(bodyType, "body");
-    this.findSchemaDefinition(responseType, "response");
+    if (paramsType) {
+      this.findSchemaDefinition(paramsType, "params");
+    }
+    if (bodyType) {
+      this.findSchemaDefinition(bodyType, "body");
+    }
+    if (responseType) {
+      this.findSchemaDefinition(responseType, "response");
+    }
 
     // Get the processed schemas
-    const params = this.openapiDefinitions[paramsType];
-    const body = this.openapiDefinitions[bodyType];
-    const responses = this.openapiDefinitions[responseType];
+    const params = paramsType ? this.openapiDefinitions[paramsType] : undefined;
+    const body = bodyType ? this.openapiDefinitions[bodyType] : undefined;
+    const responses = responseType ? this.openapiDefinitions[responseType] : undefined;
 
     console.log('📄 Retrieved schemas:', {
       params,
