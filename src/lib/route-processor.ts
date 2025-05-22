@@ -4,7 +4,7 @@ import path from "path";
 import traverse from "@babel/traverse";
 import { parse } from "@babel/parser";
 
-import { SchemaProcessor } from "./schema-processor";
+import { SchemaProcessor } from "./schema-processor.js";
 import { capitalize, extractJSDocComments, getOperationId } from "./utils.js";
 import { DataTypes, OpenApiConfig } from "../types";
 
