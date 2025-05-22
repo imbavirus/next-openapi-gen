@@ -133,6 +133,53 @@ export class SchemaProcessor {
     return undefined;
   }
 
+  private collectTypeDefinitions(ast: any, schemaName: string) {
+    if (!!this.typeDefinitions[schemaName]) return;
+    
+    console.log('📝 Collecting type definitions for:', schemaName);
+    traverse.default(ast, {
+      VariableDeclarator: (path) => {
+        if (t.isIdentifier(path.node.id, { name: schemaName })) {
+          console.log('✅ Found variable declaration for:', schemaName);
+          const name = path.node.id.name;
+          this.typeDefinitions[name] = path.node.init || path.node;
+          
+          // If this is a Zod schema, process it immediately
+          if (path.node.init && t.isCallExpression(path.node.init)) {
+            console.log('🔍 Processing Zod schema definition');
+            const schema = this.processZodType(path.node.init);
+            if (schema) {
+              console.log('💾 Storing processed schema:', schema);
+              this.openapiDefinitions[name] = schema;
+              this.processedSchemas.add(name);
+            }
+          }
+        }
+      },
+      TSTypeAliasDeclaration: (path) => {
+        if (t.isIdentifier(path.node.id, { name: schemaName }) && path.node.typeAnnotation?.typeName?.right?.name !== 'infer') {
+          console.log('✅ Found type alias for:', schemaName);
+          const name = path.node.id.name;
+          this.typeDefinitions[name] = path.node.typeAnnotation;
+        }
+      },
+      TSInterfaceDeclaration: (path) => {
+        if (t.isIdentifier(path.node.id, { name: schemaName })) {
+          console.log('✅ Found interface for:', schemaName);
+          const name = path.node.id.name;
+          this.typeDefinitions[name] = path.node;
+        }
+      },
+      TSEnumDeclaration: (path) => {
+        if (t.isIdentifier(path.node.id, { name: schemaName })) {
+          console.log('✅ Found enum for:', schemaName);
+          const name = path.node.id.name;
+          this.typeDefinitions[name] = path.node;
+        }
+      },
+    });
+  }
+
   private processZodType(node: any): OpenAPISchema {
     console.log('🔍 Processing Zod Type:', {
       nodeType: node?.type,
@@ -195,6 +242,22 @@ export class SchemaProcessor {
           // Check if the array items reference another schema
           if (node.arguments?.[0]?.name?.endsWith('Schema')) {
             const refSchemaName = node.arguments[0].name;
+            console.log('📚 Found schema reference in array items:', refSchemaName);
+            const refSchema = this.getSchemaReference(refSchemaName);
+            if (refSchema) {
+              schema = {
+                type: "array",
+                items: refSchema
+              };
+            } else {
+              console.log('⚠️ Could not resolve array items schema:', refSchemaName);
+              schema = {
+                type: "array",
+                items: {}
+              };
+            }
+          } else if (node.arguments?.[0]?.callee?.name?.endsWith('Schema')) {
+            const refSchemaName = node.arguments[0].callee.name;
             console.log('📚 Found schema reference in array items:', refSchemaName);
             const refSchema = this.getSchemaReference(refSchemaName);
             if (refSchema) {
@@ -570,42 +633,6 @@ export class SchemaProcessor {
 
     console.log('✨ Final processed object:', result);
     return result;
-  }
-
-  private collectTypeDefinitions(ast: any, schemaName: string) {
-    if (!!this.typeDefinitions[schemaName]) return;
-    
-    console.log('📝 Collecting type definitions for:', schemaName);
-    traverse.default(ast, {
-      VariableDeclarator: (path) => {
-        if (t.isIdentifier(path.node.id, { name: schemaName })) {
-          console.log('✅ Found variable declaration for:', schemaName);
-          const name = path.node.id.name;
-          this.typeDefinitions[name] = path.node.init || path.node;
-        }
-      },
-      TSTypeAliasDeclaration: (path) => {
-        if (t.isIdentifier(path.node.id, { name: schemaName }) && path.node.typeAnnotation?.typeName?.right?.name !== 'infer') {
-          console.log('✅ Found type alias for:', schemaName);
-          const name = path.node.id.name;
-          this.typeDefinitions[name] = path.node.typeAnnotation;
-        }
-      },
-      TSInterfaceDeclaration: (path) => {
-        if (t.isIdentifier(path.node.id, { name: schemaName })) {
-          console.log('✅ Found interface for:', schemaName);
-          const name = path.node.id.name;
-          this.typeDefinitions[name] = path.node;
-        }
-      },
-      TSEnumDeclaration: (path) => {
-        if (t.isIdentifier(path.node.id, { name: schemaName })) {
-          console.log('✅ Found enum for:', schemaName);
-          const name = path.node.id.name;
-          this.typeDefinitions[name] = path.node;
-        }
-      },
-    });
   }
 
   private isObjectType(node) {
