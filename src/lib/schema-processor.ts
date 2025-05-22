@@ -779,16 +779,75 @@ export class SchemaProcessor {
     return options;
   }
 
+  public getSchemaContent({ paramsType, bodyType, responseType }) {
+    console.log('🔍 Getting schema content for:', { paramsType, bodyType, responseType });
+    
+    // Process all schemas first
+    this.findSchemaDefinition(paramsType, "params");
+    this.findSchemaDefinition(bodyType, "body");
+    this.findSchemaDefinition(responseType, "response");
+
+    // Get the processed schemas
+    const params = this.openapiDefinitions[paramsType];
+    const body = this.openapiDefinitions[bodyType];
+    const responses = this.openapiDefinitions[responseType];
+
+    console.log('📄 Retrieved schemas:', {
+      params,
+      body,
+      responses
+    });
+
+    // Create the request body schema
+    const requestBody = body ? {
+      content: {
+        "application/json": {
+          schema: body
+        }
+      }
+    } : undefined;
+
+    // Create the response schema
+    const responseSchema = responses ? {
+      200: {
+        description: "Successful response",
+        content: {
+          "application/json": {
+            schema: responses
+          }
+        }
+      }
+    } : {};
+
+    // Create the parameters schema
+    const parameters = params ? this.createRequestParamsSchema(params) : { properties: {} };
+
+    console.log('✨ Final schema content:', {
+      requestBody,
+      responseSchema,
+      parameters
+    });
+
+    return {
+      requestBody,
+      responses: responseSchema,
+      params: parameters
+    };
+  }
+
   public createRequestParamsSchema(params: OpenAPISchema): Params {
+    console.log('🔧 Creating request params schema from:', params);
     const queryParams: Property[] = [];
 
     if (params.properties) {
       for (let [name, value] of Object.entries(params.properties)) {
+        console.log('📝 Processing param:', name, value);
         const param: Property = {
           in: "query",
           name,
           schema: {
             type: value.type,
+            ...value
           },
           required: Array.isArray(value.required) ? value.required.includes(name) : value.required === true,
         };
@@ -805,49 +864,45 @@ export class SchemaProcessor {
         queryParams.push(param);
       }
     }
-    return { properties: queryParams.reduce((acc, param) => {
-      acc[param.name] = param;
-      return acc;
-    }, {} as Record<string, Property>) };
+
+    const result = {
+      properties: queryParams.reduce((acc, param) => {
+        acc[param.name] = param;
+        return acc;
+      }, {} as Record<string, Property>)
+    };
+
+    console.log('✨ Created params schema:', result);
+    return result;
   }
 
   public createRequestBodySchema(body: OpenAPISchema) {
-    return {
+    console.log('🔧 Creating request body schema from:', body);
+    const result = {
       content: {
         "application/json": {
-          schema: body,
-        },
-      },
+          schema: body
+        }
+      }
     };
+    console.log('✨ Created body schema:', result);
+    return result;
   }
 
   public createResponseSchema(responses: OpenAPISchema) {
-    return {
+    console.log('🔧 Creating response schema from:', responses);
+    const result = {
       200: {
         description: "Successful response",
         content: {
           "application/json": {
-            schema: responses,
-          },
-        },
-      },
+            schema: responses
+          }
+        }
+      }
     };
-  }
-
-  public getSchemaContent({ paramsType, bodyType, responseType }) {
-    this.findSchemaDefinition(paramsType, "params");
-    this.findSchemaDefinition(bodyType, "body");
-    this.findSchemaDefinition(responseType, "response");
-
-    const params = this.openapiDefinitions[paramsType];
-    const body = this.openapiDefinitions[bodyType];
-    const responses = this.openapiDefinitions[responseType];
-
-    return {
-      params,
-      body,
-      responses,
-    };
+    console.log('✨ Created response schema:', result);
+    return result;
   }
 
   private getSchemaReference(schemaName: string): OpenAPISchema | undefined {
