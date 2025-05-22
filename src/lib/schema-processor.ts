@@ -6,7 +6,8 @@ import * as t from "@babel/types";
 
 import { Params, Property } from "../types";
 
-interface OpenAPISchema {
+// Define the base schema properties
+interface BaseSchema {
   type?: string;
   format?: string;
   minLength?: number;
@@ -21,7 +22,7 @@ interface OpenAPISchema {
   nullable?: boolean;
   items?: OpenAPISchema;
   properties?: Record<string, OpenAPISchema>;
-  required?: string[];
+  required?: boolean | string[];
   anyOf?: OpenAPISchema[];
   allOf?: OpenAPISchema[];
   oneOf?: OpenAPISchema[];
@@ -31,6 +32,13 @@ interface OpenAPISchema {
     propertyName: string;
   };
   [key: string]: any;
+}
+
+// Combine Property and BaseSchema
+interface OpenAPISchema extends BaseSchema {
+  in?: string;
+  name?: string;
+  schema?: BaseSchema;
 }
 
 export class SchemaProcessor {
@@ -728,8 +736,8 @@ export class SchemaProcessor {
     return options;
   }
 
-  public createRequestParamsSchema(params: Params) {
-    const queryParams = [];
+  public createRequestParamsSchema(params: OpenAPISchema): Params {
+    const queryParams: Property[] = [];
 
     if (params.properties) {
       for (let [name, value] of Object.entries(params.properties)) {
@@ -739,7 +747,7 @@ export class SchemaProcessor {
           schema: {
             type: value.type,
           },
-          required: value.required,
+          required: Array.isArray(value.required) ? value.required.includes(name) : value.required === true,
         };
 
         if (value.enum) {
@@ -754,10 +762,13 @@ export class SchemaProcessor {
         queryParams.push(param);
       }
     }
-    return queryParams;
+    return { properties: queryParams.reduce((acc, param) => {
+      acc[param.name] = param;
+      return acc;
+    }, {} as Record<string, Property>) };
   }
 
-  public createRequestBodySchema(body: Record<string, any>) {
+  public createRequestBodySchema(body: OpenAPISchema) {
     return {
       content: {
         "application/json": {
@@ -767,7 +778,7 @@ export class SchemaProcessor {
     };
   }
 
-  public createResponseSchema(responses: Record<string, any>) {
+  public createResponseSchema(responses: OpenAPISchema) {
     return {
       200: {
         description: "Successful response",
