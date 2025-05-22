@@ -78,8 +78,10 @@ export class SchemaProcessor {
     // Ensure schema name has Schema suffix
     const schemaNameWithSuffix = schemaName.endsWith('Schema') ? schemaName : `${schemaName}Schema`;
     
-    if (filePath.endsWith(`${schemaNameWithSuffix}.ts`)) {
-      const content = fs.readFileSync(filePath, "utf-8");
+    // Check if file contains the schema we're looking for
+    const content = fs.readFileSync(filePath, "utf-8");
+    if (content.includes(schemaNameWithSuffix)) {
+      console.log('🔍 Found schema definition in file:', schemaNameWithSuffix);
       const ast = parse(content, {
         sourceType: "module",
         plugins: ["typescript", "decorators-legacy"],
@@ -92,6 +94,8 @@ export class SchemaProcessor {
         console.log('💾 Storing schema definition for:', schemaNameWithSuffix);
         this.openapiDefinitions[schemaNameWithSuffix] = definition;
         this.processedSchemas.add(schemaNameWithSuffix);
+      } else {
+        console.log('⚠️ Could not resolve schema definition for:', schemaNameWithSuffix);
       }
     }
   }
@@ -563,30 +567,32 @@ export class SchemaProcessor {
   private collectTypeDefinitions(ast: any, schemaName: string) {
     if (!!this.typeDefinitions[schemaName]) return;
     
+    console.log('📝 Collecting type definitions for:', schemaName);
     traverse.default(ast, {
       VariableDeclarator: (path) => {
         if (t.isIdentifier(path.node.id, { name: schemaName })) {
+          console.log('✅ Found variable declaration for:', schemaName);
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node.init || path.node;
-        }
-        if (path.node.id.name === `${schemaName}Schema`) {
-          this.typeDefinitions[schemaName] = this.processZodType(path.node.init);
         }
       },
       TSTypeAliasDeclaration: (path) => {
         if (t.isIdentifier(path.node.id, { name: schemaName }) && path.node.typeAnnotation?.typeName?.right?.name !== 'infer') {
+          console.log('✅ Found type alias for:', schemaName);
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node.typeAnnotation;
         }
       },
       TSInterfaceDeclaration: (path) => {
         if (t.isIdentifier(path.node.id, { name: schemaName })) {
+          console.log('✅ Found interface for:', schemaName);
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node;
         }
       },
       TSEnumDeclaration: (path) => {
         if (t.isIdentifier(path.node.id, { name: schemaName })) {
+          console.log('✅ Found enum for:', schemaName);
           const name = path.node.id.name;
           this.typeDefinitions[name] = path.node;
         }
