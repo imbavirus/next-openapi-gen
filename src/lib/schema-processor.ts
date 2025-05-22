@@ -64,26 +64,42 @@ export class SchemaProcessor {
   }
 
   private processZodType(node: any): OpenAPISchema {
-    if (!node) return {};
+    console.log('🔍 Processing Zod Type:', {
+      nodeType: node?.type,
+      calleeName: node?.callee?.name,
+      propertyName: node?.callee?.property?.name,
+      arguments: node?.arguments
+    });
+
+    if (!node) {
+      console.log('⚠️ Empty node received');
+      return {};
+    }
 
     // Handle schema references first
     if (node.callee?.name && node.callee.name.endsWith('Schema')) {
       const schemaName = node.callee.name;
+      console.log('📚 Found schema reference:', schemaName);
       // Find and process the referenced schema
       this.findSchemaDefinition(schemaName, this.contentType);
       const referencedSchema = this.openapiDefinitions[schemaName];
       if (referencedSchema) {
+        console.log('✅ Successfully resolved schema reference:', schemaName);
         return referencedSchema;
+      } else {
+        console.log('❌ Failed to resolve schema reference:', schemaName);
       }
     }
 
     // Handle basic types
     if (node.callee?.property?.name) {
       const typeName = node.callee.property.name;
+      console.log('🔧 Processing Zod type:', typeName);
       let schema: OpenAPISchema = {};
 
       switch (typeName) {
         case "string":
+          console.log('📝 Processing string type with args:', node.arguments?.[0]);
           schema = { type: "string" };
           if (node.arguments?.[0]) {
             const validation = node.arguments[0];
@@ -94,6 +110,7 @@ export class SchemaProcessor {
           break;
 
         case "number":
+          console.log('🔢 Processing number type with args:', node.arguments?.[0]);
           schema = { type: "number" };
           if (node.arguments?.[0]) {
             const validation = node.arguments[0];
@@ -103,10 +120,12 @@ export class SchemaProcessor {
           break;
 
         case "boolean":
+          console.log('✅ Processing boolean type');
           schema = { type: "boolean" };
           break;
 
         case "array":
+          console.log('📦 Processing array type with args:', node.arguments);
           schema = {
             type: "array",
             items: this.processZodType(node.arguments?.[0])
@@ -123,14 +142,17 @@ export class SchemaProcessor {
           break;
 
         case "nullable":
+          console.log('🔄 Processing nullable type');
           schema = { ...this.processZodType(node.arguments?.[0]), nullable: true };
           break;
 
         case "optional":
+          console.log('⚡ Processing optional type');
           schema = { ...this.processZodType(node.arguments?.[0]) };
           break;
 
         case "default":
+          console.log('💫 Processing default value:', node.arguments?.[1]?.value);
           schema = { ...this.processZodType(node.arguments?.[0]) };
           if (node.arguments?.[1]) {
             schema.default = node.arguments[1].value;
@@ -138,6 +160,7 @@ export class SchemaProcessor {
           break;
 
         case "describe":
+          console.log('📄 Processing description:', node.arguments?.[1]?.value);
           schema = { ...this.processZodType(node.arguments?.[0]) };
           if (node.arguments?.[1]) {
             schema.description = node.arguments[1].value;
@@ -145,16 +168,19 @@ export class SchemaProcessor {
           break;
 
         case "transform":
+          console.log('🔄 Processing transform');
           schema = { ...this.processZodType(node.arguments?.[0]) };
           schema["x-transform"] = node.arguments?.[1]?.toString();
           break;
 
         case "refine":
+          console.log('🔍 Processing refinement');
           schema = { ...this.processZodType(node.arguments?.[0]) };
           schema["x-refinement"] = node.arguments?.[1]?.toString();
           break;
 
         case "union":
+          console.log('🔗 Processing union type');
           schema = {
             anyOf: node.arguments?.[0]?.elements?.map((element: any) => 
               this.processZodType(element)
@@ -163,6 +189,7 @@ export class SchemaProcessor {
           break;
 
         case "intersection":
+          console.log('🔗 Processing intersection type');
           schema = {
             allOf: node.arguments?.[0]?.elements?.map((element: any) => 
               this.processZodType(element)
@@ -171,12 +198,14 @@ export class SchemaProcessor {
           break;
 
         case "literal":
+          console.log('📌 Processing literal type:', node.arguments?.[0]?.value);
           schema = {
             enum: [node.arguments?.[0]?.value]
           };
           break;
 
         case "enum":
+          console.log('📋 Processing enum type');
           schema = {
             type: "string",
             enum: node.arguments?.[0]?.elements?.map((element: any) => 
@@ -186,16 +215,22 @@ export class SchemaProcessor {
           break;
 
         case "object":
+          console.log('🏗️ Processing object type');
           schema = this.processZodObject(node.arguments?.[0]);
           // Handle recursive object references
           if (node.arguments?.[0]?.properties) {
+            console.log('🔍 Checking for nested schema references');
             node.arguments[0].properties.forEach((property: any) => {
               if (property.value?.callee?.name?.endsWith('Schema')) {
                 const refSchemaName = property.value.callee.name;
+                console.log('📚 Found nested schema reference:', refSchemaName);
                 this.findSchemaDefinition(refSchemaName, this.contentType);
                 const refSchema = this.openapiDefinitions[refSchemaName];
                 if (refSchema) {
+                  console.log('✅ Resolved nested schema reference:', refSchemaName);
                   schema.properties[property.key.name] = refSchema;
+                } else {
+                  console.log('❌ Failed to resolve nested schema reference:', refSchemaName);
                 }
               }
             });
@@ -356,24 +391,36 @@ export class SchemaProcessor {
 
       // Add custom error messages if present
       if (node.arguments?.[1]?.value) {
+        console.log('⚠️ Adding custom error message:', node.arguments[1].value);
         schema["x-error-message"] = node.arguments[1].value;
       }
 
       // Add metadata if present
       if (node.metadata) {
+        console.log('📋 Adding metadata:', node.metadata);
         Object.entries(node.metadata).forEach(([key, value]) => {
           schema[`x-${key}`] = value;
         });
       }
 
+      console.log('✨ Final processed schema:', schema);
       return schema;
     }
 
+    console.log('⚠️ No matching Zod type found');
     return {};
   }
 
   private processZodObject(node: any): OpenAPISchema {
-    if (!node?.properties) return { type: "object", properties: {} };
+    console.log('🏗️ Processing Zod object:', {
+      hasProperties: !!node?.properties,
+      propertyCount: node?.properties?.length
+    });
+
+    if (!node?.properties) {
+      console.log('⚠️ Empty object node');
+      return { type: "object", properties: {} };
+    }
 
     const properties: Record<string, OpenAPISchema> = {};
     const required: string[] = [];
@@ -382,52 +429,66 @@ export class SchemaProcessor {
       const fieldName = property.key.name;
       const zodType = property.value;
       
+      console.log('🔍 Processing property:', fieldName);
+      
       // Process the Zod type
       let schema = this.processZodType(zodType);
       
       // Handle schema references
       if (zodType?.callee?.name?.endsWith('Schema')) {
         const refSchemaName = zodType.callee.name;
+        console.log('📚 Found schema reference in property:', refSchemaName);
         this.findSchemaDefinition(refSchemaName, this.contentType);
         const refSchema = this.openapiDefinitions[refSchemaName];
         if (refSchema) {
+          console.log('✅ Resolved schema reference in property:', refSchemaName);
           schema = refSchema;
+        } else {
+          console.log('❌ Failed to resolve schema reference in property:', refSchemaName);
         }
       }
       
       // Handle optional/required
       if (!zodType.optional) {
+        console.log('📌 Adding to required fields:', fieldName);
         required.push(fieldName);
       }
       
       // Handle default values
       if (zodType.default) {
+        console.log('💫 Adding default value for:', fieldName);
         schema.default = zodType.default;
       }
       
       // Handle descriptions
       if (zodType.description) {
+        console.log('📄 Adding description for:', fieldName);
         schema.description = zodType.description;
       }
 
       // Handle deprecated
       if (zodType.deprecated) {
+        console.log('⚠️ Marking as deprecated:', fieldName);
         schema.deprecated = true;
       }
 
       // Handle examples
       if (zodType.example) {
+        console.log('💡 Adding example for:', fieldName);
         schema.example = zodType.example;
       }
       
       properties[fieldName] = schema;
     });
 
-    return {
+    const result = {
       type: "object",
       properties,
       required: required.length > 0 ? required : undefined
     };
+
+    console.log('✨ Final processed object:', result);
+    return result;
   }
 
   private collectTypeDefinitions(ast: any, schemaName: string) {
