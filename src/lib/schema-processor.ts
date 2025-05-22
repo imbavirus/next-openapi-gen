@@ -94,10 +94,19 @@ export class SchemaProcessor {
         plugins: ["typescript", "decorators-legacy"],
       });
 
+      // First collect type definitions
       this.collectTypeDefinitions(ast, schemaNameWithSuffix);
 
+      // If we already have a processed schema, use it
+      if (this.openapiDefinitions[schemaNameWithSuffix]) {
+        console.log('✅ Using existing processed schema for:', schemaNameWithSuffix);
+        console.log('📄 Existing schema content:', this.openapiDefinitions[schemaNameWithSuffix]);
+        return;
+      }
+
+      // Otherwise try to resolve the type
       const definition = this.resolveType(schemaNameWithSuffix);
-      if (definition) {
+      if (definition && Object.keys(definition).length > 0) {
         console.log('💾 Storing schema definition for:', schemaNameWithSuffix);
         this.openapiDefinitions[schemaNameWithSuffix] = definition;
         this.processedSchemas.add(schemaNameWithSuffix);
@@ -106,47 +115,6 @@ export class SchemaProcessor {
         console.log('⚠️ Could not resolve schema definition for:', schemaNameWithSuffix);
       }
     }
-  }
-
-  private getSchemaReference(schemaName: string): OpenAPISchema | undefined {
-    console.log('🔍 Getting schema reference:', schemaName);
-    
-    // Ensure schema name has Schema suffix
-    const schemaNameWithSuffix = schemaName.endsWith('Schema') ? schemaName : `${schemaName}Schema`;
-    
-    // Try to find schema with Schema suffix
-    if (this.processedSchemas.has(schemaNameWithSuffix)) {
-      console.log('✅ Found schema reference:', schemaNameWithSuffix);
-      const schema = this.openapiDefinitions[schemaNameWithSuffix];
-      console.log('📄 Schema content:', schema);
-      if (!schema || Object.keys(schema).length === 0) {
-        console.log('⚠️ Found empty schema, attempting to reprocess');
-        this.findSchemaDefinition(schemaNameWithSuffix, this.contentType);
-        const reprocessedSchema = this.openapiDefinitions[schemaNameWithSuffix];
-        console.log('📄 Reprocessed schema content:', reprocessedSchema);
-        return reprocessedSchema;
-      }
-      return schema;
-    }
-    
-    // If we haven't processed this schema yet, process it
-    console.log('🔄 Schema not yet processed, processing now:', schemaNameWithSuffix);
-    this.findSchemaDefinition(schemaNameWithSuffix, this.contentType);
-    
-    // Try again after processing
-    if (this.processedSchemas.has(schemaNameWithSuffix)) {
-      console.log('✅ Found schema reference after processing:', schemaNameWithSuffix);
-      const schema = this.openapiDefinitions[schemaNameWithSuffix];
-      console.log('📄 Schema content:', schema);
-      if (!schema || Object.keys(schema).length === 0) {
-        console.log('⚠️ Found empty schema after processing');
-        return undefined;
-      }
-      return schema;
-    }
-
-    console.log('❌ Schema reference not found:', schemaNameWithSuffix);
-    return undefined;
   }
 
   private collectTypeDefinitions(ast: any, schemaName: string) {
@@ -164,11 +132,13 @@ export class SchemaProcessor {
           if (path.node.init && t.isCallExpression(path.node.init)) {
             console.log('🔍 Processing Zod schema definition');
             const schema = this.processZodType(path.node.init);
-            if (schema) {
+            if (schema && Object.keys(schema).length > 0) {
               console.log('💾 Storing processed schema:', schema);
               this.openapiDefinitions[name] = schema;
               this.processedSchemas.add(name);
               console.log('📄 Stored schema content:', schema);
+            } else {
+              console.log('⚠️ Processed schema is empty');
             }
           }
         }
@@ -878,5 +848,50 @@ export class SchemaProcessor {
       body,
       responses,
     };
+  }
+
+  private getSchemaReference(schemaName: string): OpenAPISchema | undefined {
+    console.log('🔍 Getting schema reference:', schemaName);
+    
+    // Ensure schema name has Schema suffix
+    const schemaNameWithSuffix = schemaName.endsWith('Schema') ? schemaName : `${schemaName}Schema`;
+    
+    // Try to find schema with Schema suffix
+    if (this.processedSchemas.has(schemaNameWithSuffix)) {
+      console.log('✅ Found schema reference:', schemaNameWithSuffix);
+      const schema = this.openapiDefinitions[schemaNameWithSuffix];
+      console.log('📄 Schema content:', schema);
+      if (!schema || Object.keys(schema).length === 0) {
+        console.log('⚠️ Found empty schema, attempting to reprocess');
+        // Clear the existing empty schema
+        delete this.openapiDefinitions[schemaNameWithSuffix];
+        this.processedSchemas.delete(schemaNameWithSuffix);
+        // Reprocess the schema
+        this.findSchemaDefinition(schemaNameWithSuffix, this.contentType);
+        const reprocessedSchema = this.openapiDefinitions[schemaNameWithSuffix];
+        console.log('📄 Reprocessed schema content:', reprocessedSchema);
+        return reprocessedSchema;
+      }
+      return schema;
+    }
+    
+    // If we haven't processed this schema yet, process it
+    console.log('🔄 Schema not yet processed, processing now:', schemaNameWithSuffix);
+    this.findSchemaDefinition(schemaNameWithSuffix, this.contentType);
+    
+    // Try again after processing
+    if (this.processedSchemas.has(schemaNameWithSuffix)) {
+      console.log('✅ Found schema reference after processing:', schemaNameWithSuffix);
+      const schema = this.openapiDefinitions[schemaNameWithSuffix];
+      console.log('📄 Schema content:', schema);
+      if (!schema || Object.keys(schema).length === 0) {
+        console.log('⚠️ Found empty schema after processing');
+        return undefined;
+      }
+      return schema;
+    }
+
+    console.log('❌ Schema reference not found:', schemaNameWithSuffix);
+    return undefined;
   }
 }
