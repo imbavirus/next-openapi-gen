@@ -68,7 +68,8 @@ export class SchemaProcessor {
       nodeType: node?.type,
       calleeName: node?.callee?.name,
       propertyName: node?.callee?.property?.name,
-      arguments: node?.arguments
+      arguments: node?.arguments,
+      name: node?.name
     });
 
     if (!node) {
@@ -126,10 +127,31 @@ export class SchemaProcessor {
 
         case "array":
           console.log('📦 Processing array type with args:', node.arguments);
-          schema = {
-            type: "array",
-            items: this.processZodType(node.arguments?.[0])
-          };
+          // Check if the array items reference another schema
+          if (node.arguments?.[0]?.name?.endsWith('Schema')) {
+            const refSchemaName = node.arguments[0].name;
+            console.log('📚 Found schema reference in array items:', refSchemaName);
+            this.findSchemaDefinition(refSchemaName, this.contentType);
+            const refSchema = this.openapiDefinitions[refSchemaName];
+            if (refSchema) {
+              console.log('✅ Resolved schema reference in array items:', refSchemaName);
+              schema = {
+                type: "array",
+                items: refSchema
+              };
+            } else {
+              console.log('❌ Failed to resolve schema reference in array items:', refSchemaName);
+              schema = {
+                type: "array",
+                items: this.processZodType(node.arguments?.[0])
+              };
+            }
+          } else {
+            schema = {
+              type: "array",
+              items: this.processZodType(node.arguments?.[0])
+            };
+          }
           if (node.arguments?.[1]) {
             const validation = node.arguments[1];
             if (validation.min) schema.minItems = validation.min;
@@ -405,6 +427,20 @@ export class SchemaProcessor {
 
       console.log('✨ Final processed schema:', schema);
       return schema;
+    }
+
+    // Handle direct schema references (like in array items)
+    if (node.name?.endsWith('Schema')) {
+      const schemaName = node.name;
+      console.log('📚 Found direct schema reference:', schemaName);
+      this.findSchemaDefinition(schemaName, this.contentType);
+      const referencedSchema = this.openapiDefinitions[schemaName];
+      if (referencedSchema) {
+        console.log('✅ Successfully resolved direct schema reference:', schemaName);
+        return referencedSchema;
+      } else {
+        console.log('❌ Failed to resolve direct schema reference:', schemaName);
+      }
     }
 
     console.log('⚠️ No matching Zod type found');
