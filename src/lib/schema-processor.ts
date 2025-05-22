@@ -75,20 +75,23 @@ export class SchemaProcessor {
 
   private processSchemaFile(filePath: string, schemaName: string) {
     console.log('📄 Processing schema file:', filePath);
-    if (filePath.endsWith(`${schemaName}.ts`)) {
+    // Ensure schema name has Schema suffix
+    const schemaNameWithSuffix = schemaName.endsWith('Schema') ? schemaName : `${schemaName}Schema`;
+    
+    if (filePath.endsWith(`${schemaNameWithSuffix}.ts`)) {
       const content = fs.readFileSync(filePath, "utf-8");
       const ast = parse(content, {
         sourceType: "module",
         plugins: ["typescript", "decorators-legacy"],
       });
 
-      this.collectTypeDefinitions(ast, schemaName);
+      this.collectTypeDefinitions(ast, schemaNameWithSuffix);
 
-      const definition = this.resolveType(schemaName);
+      const definition = this.resolveType(schemaNameWithSuffix);
       if (definition) {
-        console.log('💾 Storing schema definition for:', schemaName);
-        this.openapiDefinitions[schemaName] = definition;
-        this.processedSchemas.add(schemaName);
+        console.log('💾 Storing schema definition for:', schemaNameWithSuffix);
+        this.openapiDefinitions[schemaNameWithSuffix] = definition;
+        this.processedSchemas.add(schemaNameWithSuffix);
       }
     }
   }
@@ -96,20 +99,27 @@ export class SchemaProcessor {
   private getSchemaReference(schemaName: string): OpenAPISchema | undefined {
     console.log('🔍 Getting schema reference:', schemaName);
     
+    // Ensure schema name has Schema suffix
+    const schemaNameWithSuffix = schemaName.endsWith('Schema') ? schemaName : `${schemaName}Schema`;
+    
+    // Try to find schema with Schema suffix
+    if (this.processedSchemas.has(schemaNameWithSuffix)) {
+      console.log('✅ Found schema reference:', schemaNameWithSuffix);
+      return this.openapiDefinitions[schemaNameWithSuffix];
+    }
+    
     // If we haven't processed this schema yet, process it
-    if (!this.processedSchemas.has(schemaName)) {
-      console.log('🔄 Schema not yet processed, processing now:', schemaName);
-      this.findSchemaDefinition(schemaName, this.contentType);
+    console.log('🔄 Schema not yet processed, processing now:', schemaNameWithSuffix);
+    this.findSchemaDefinition(schemaNameWithSuffix, this.contentType);
+    
+    // Try again after processing
+    if (this.processedSchemas.has(schemaNameWithSuffix)) {
+      console.log('✅ Found schema reference after processing:', schemaNameWithSuffix);
+      return this.openapiDefinitions[schemaNameWithSuffix];
     }
 
-    const schema = this.openapiDefinitions[schemaName];
-    if (schema) {
-      console.log('✅ Found schema reference:', schemaName);
-      return schema;
-    } else {
-      console.log('❌ Schema reference not found:', schemaName);
-      return undefined;
-    }
+    console.log('❌ Schema reference not found:', schemaNameWithSuffix);
+    return undefined;
   }
 
   private processZodType(node: any): OpenAPISchema {
