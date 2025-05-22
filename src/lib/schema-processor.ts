@@ -101,6 +101,7 @@ export class SchemaProcessor {
         console.log('💾 Storing schema definition for:', schemaNameWithSuffix);
         this.openapiDefinitions[schemaNameWithSuffix] = definition;
         this.processedSchemas.add(schemaNameWithSuffix);
+        console.log('📄 Stored schema content:', definition);
       } else {
         console.log('⚠️ Could not resolve schema definition for:', schemaNameWithSuffix);
       }
@@ -118,6 +119,13 @@ export class SchemaProcessor {
       console.log('✅ Found schema reference:', schemaNameWithSuffix);
       const schema = this.openapiDefinitions[schemaNameWithSuffix];
       console.log('📄 Schema content:', schema);
+      if (!schema || Object.keys(schema).length === 0) {
+        console.log('⚠️ Found empty schema, attempting to reprocess');
+        this.findSchemaDefinition(schemaNameWithSuffix, this.contentType);
+        const reprocessedSchema = this.openapiDefinitions[schemaNameWithSuffix];
+        console.log('📄 Reprocessed schema content:', reprocessedSchema);
+        return reprocessedSchema;
+      }
       return schema;
     }
     
@@ -130,6 +138,10 @@ export class SchemaProcessor {
       console.log('✅ Found schema reference after processing:', schemaNameWithSuffix);
       const schema = this.openapiDefinitions[schemaNameWithSuffix];
       console.log('📄 Schema content:', schema);
+      if (!schema || Object.keys(schema).length === 0) {
+        console.log('⚠️ Found empty schema after processing');
+        return undefined;
+      }
       return schema;
     }
 
@@ -156,6 +168,7 @@ export class SchemaProcessor {
               console.log('💾 Storing processed schema:', schema);
               this.openapiDefinitions[name] = schema;
               this.processedSchemas.add(name);
+              console.log('📄 Stored schema content:', schema);
             }
           }
         }
