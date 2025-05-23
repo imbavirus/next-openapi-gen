@@ -212,3 +212,106 @@ The `next.openapi.json` file allows you to configure the behavior of the OpenAPI
    </tr>
   </tbody>
 </table>
+
+## Zod Schema Requirements
+
+To ensure proper OpenAPI generation, your Zod schemas must follow these conventions:
+
+1. **Schema Naming**:
+   - All schema definitions must end with the `Schema` suffix
+   - Example: `PeerParamsSchema`, `UserResponseSchema`
+
+2. **Schema Structure**:
+   ```typescript
+   // ✅ Correct
+   export const UserSchema = z.object({
+     id: z.string(),
+     name: z.string(),
+     email: z.string().email()
+   });
+
+   // ❌ Incorrect
+   export const User = z.object({...}); // Missing Schema suffix
+   ```
+
+3. **Type References**:
+   - When referencing other schemas, use the full schema name
+   - Example: `z.array(PeerParamsSchema)` instead of `z.array(PeerParams)`
+
+4. **Nullable Fields**:
+   - Use `z.nullable()` for optional fields
+   - Example: `z.nullable(z.string())`
+
+5. **Array Types**:
+   - For array responses, define the schema as an array of the item type
+   - Example: `export const UserListSchema = z.array(UserSchema)`
+
+6. **Common Patterns**:
+   ```typescript
+   // Query Parameters Schema
+   export const QueryParamsSchema = z.object({
+     page: z.nullable(z.number()),
+     limit: z.nullable(z.number())
+   });
+
+   // Request Body Schema
+   export const CreateUserSchema = z.object({
+     name: z.string(),
+     email: z.string().email()
+   });
+
+   // Response Schema
+   export const UserResponseSchema = z.object({
+     id: z.string(),
+     name: z.string(),
+     email: z.string().email()
+   });
+
+   // Array Response Schema
+   export const UserListResponseSchema = z.array(UserResponseSchema);
+   ```
+
+7. **Supported Zod Types**:
+   - Basic types: `string`, `number`, `boolean`
+   - Complex types: `object`, `array`, `enum`
+   - Validation: `email`, `url`, `uuid`
+   - Modifiers: `nullable`, `optional`, `default`
+
+8. **Best Practices**:
+   - Keep schemas in separate files under the `schemaDir`
+   - Use descriptive names that indicate the purpose (Params, Request, Response)
+   - Include the `Schema` suffix in all schema definitions
+   - Use `z.nullable()` for optional fields instead of `z.optional()`
+   - Define array responses using `z.array()`
+
+## Example
+
+```typescript
+// src/types/user.ts
+import { z } from 'zod';
+
+export const UserParamsSchema = z.object({
+  id: z.nullable(z.string()),
+  includeDetails: z.nullable(z.boolean())
+});
+
+export const CreateUserSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'user'])
+});
+
+export const UserResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'user']),
+  createdAt: z.string().datetime()
+});
+
+export const UserListResponseSchema = z.array(UserResponseSchema);
+```
+
+## License
+
+MIT
