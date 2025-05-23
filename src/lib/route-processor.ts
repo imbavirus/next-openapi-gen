@@ -11,21 +11,38 @@ import { DataTypes, OpenApiConfig } from "../types";
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 const MUTATION_HTTP_METHODS = ["PATCH", "POST", "PUT"];
 
+/**
+ * Processes Next.js API routes to generate OpenAPI specifications
+ * Handles route definitions, extracts metadata, and generates path items
+ */
 export class RouteProcessor {
   private swaggerPaths: Record<string, any> = {};
   private schemaProcessor: SchemaProcessor;
   private config: OpenApiConfig;
   private paths: Record<string, any> = {};
 
+  /**
+   * Creates a new RouteProcessor instance
+   * @param config - Configuration object for the route processor
+   */
   constructor(config: OpenApiConfig) {
     this.config = config;
     this.schemaProcessor = new SchemaProcessor(config.schemaDir);
   }
 
+  /**
+   * Checks if a variable name represents an HTTP method
+   * @param varName - Variable name to check
+   * @returns True if the variable name is an HTTP method
+   */
   private isRoute(varName: string) {
     return HTTP_METHODS.includes(varName);
   }
 
+  /**
+   * Processes a single file to extract route definitions
+   * @param filePath - Path to the file to process
+   */
   private processFile(filePath: string) {
     const content = fs.readFileSync(filePath, "utf-8");
     const ast = parse(content, {
@@ -64,6 +81,10 @@ export class RouteProcessor {
     });
   }
 
+  /**
+   * Recursively scans a directory for API routes
+   * @param dir - Directory to scan
+   */
   public scanApiRoutes(dir: string) {
     const files = fs.readdirSync(dir);
 
@@ -79,6 +100,12 @@ export class RouteProcessor {
     });
   }
 
+  /**
+   * Adds a route to the paths collection
+   * @param varName - Variable name of the route
+   * @param filePath - Path to the file containing the route
+   * @param dataTypes - Data types extracted from JSDoc comments
+   */
   private addRouteToPaths(
     varName: string,
     filePath: string,
@@ -135,6 +162,11 @@ export class RouteProcessor {
     this.swaggerPaths[routePath][method] = definition;
   }
 
+  /**
+   * Gets the route path from a file path
+   * @param filePath - File path to extract route path from
+   * @returns The route path
+   */
   private getRoutePath(filePath: string): string {
     const suffixPath = filePath.split("api")[1];
     return suffixPath
@@ -143,6 +175,11 @@ export class RouteProcessor {
       .replace(/\/$/, "");
   }
 
+  /**
+   * Sorts paths based on tags and path length
+   * @param paths - Paths to sort
+   * @returns Sorted paths
+   */
   private getSortedPaths(paths: Record<string, any>) {
     function comparePaths(a, b) {
       const aMethods = this.swaggerPaths[a] || {};
@@ -182,6 +219,10 @@ export class RouteProcessor {
       }, {});
   }
 
+  /**
+   * Gets the sorted Swagger paths
+   * @returns Sorted Swagger paths
+   */
   public getSwaggerPaths() {
     const paths = this.getSortedPaths(this.swaggerPaths);
     return this.getSortedPaths(paths);

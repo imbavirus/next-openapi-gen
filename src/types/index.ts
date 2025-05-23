@@ -1,3 +1,6 @@
+/**
+ * OpenAPI schema definition
+ */
 export interface OpenAPISchema {
   type?: string;
   format?: string;
@@ -5,7 +8,7 @@ export interface OpenAPISchema {
   maxLength?: number;
   items?: OpenAPISchema;
   properties?: Record<string, OpenAPISchema>;
-  required?: string[];
+  required?: boolean | string[];
   nullable?: boolean;
   description?: string;
   enum?: any[];
@@ -16,7 +19,7 @@ export interface OpenAPISchema {
   anyOf?: OpenAPISchema[];
   oneOf?: OpenAPISchema[];
   not?: OpenAPISchema;
-  additionalProperties?: boolean | OpenAPISchema;
+  additionalProperties?: OpenAPISchema;
   minProperties?: number;
   maxProperties?: number;
   pattern?: string;
@@ -64,49 +67,51 @@ export interface OpenAPISchema {
   readOnly?: boolean;
   writeOnly?: boolean;
   comment?: string;
+  [key: string]: any;
 }
 
+/**
+ * OpenAPI path item definition
+ */
 export interface PathItem {
-  get?: Operation;
-  put?: Operation;
-  post?: Operation;
-  delete?: Operation;
-  options?: Operation;
-  head?: Operation;
-  patch?: Operation;
-  trace?: Operation;
-  parameters?: Parameter[];
+  [method: string]: Operation;
 }
 
+/**
+ * OpenAPI operation definition
+ */
 export interface Operation {
   operationId?: string;
   summary?: string;
   description?: string;
   tags?: string[];
-  security?: any[];
+  security?: { [key: string]: string[] }[];
+  parameters?: Parameter[];
   requestBody?: {
     content: {
-      "application/json": {
+      [contentType: string]: {
         schema: OpenAPISchema;
       };
     };
   };
   responses: {
-    [status: string]: {
+    [statusCode: string]: {
       description: string;
-      content: {
-        "application/json": {
+      content?: {
+        [contentType: string]: {
           schema: OpenAPISchema;
         };
       };
     };
   };
-  parameters?: Parameter[];
 }
 
+/**
+ * OpenAPI parameter definition
+ */
 export interface Parameter {
+  in: string;
   name: string;
-  in: "query" | "header" | "path" | "cookie";
   description?: string;
   required?: boolean;
   schema: OpenAPISchema;
@@ -133,51 +138,39 @@ export interface OpenApiConfig {
   securitySchemes?: Record<string, any>;
 }
 
+/**
+ * Route definition with JSDoc comments
+ */
 export interface RouteDefinition {
   method: string;
   path: string;
-  handler: Function;
   paramsType?: string;
   bodyType?: string;
   responseType?: string;
-  summary?: string;
-  description?: string;
-  tags?: string[];
-  security?: any[];
-  operationId?: string;
-  requestBody?: {
-    content: {
-      "application/json": {
-        schema: OpenAPISchema;
-      };
-    };
+  jsDoc?: {
+    tags: Array<{
+      tagName: string;
+      content: string;
+    }>;
   };
-  responses?: {
-    [status: string]: {
-      description: string;
-      content: {
-        "application/json": {
-          schema: OpenAPISchema;
-        };
-      };
-    };
-  };
-  parameters?: Parameter[];
 }
 
+/**
+ * Schema content for a route
+ */
 export interface SchemaContent {
   requestBody?: {
     content: {
-      "application/json": {
+      [contentType: string]: {
         schema: OpenAPISchema;
       };
     };
   };
   responses: {
-    [status: string]: {
+    [statusCode: string]: {
       description: string;
-      content: {
-        "application/json": {
+      content?: {
+        [contentType: string]: {
           schema: OpenAPISchema;
         };
       };

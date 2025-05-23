@@ -41,6 +41,9 @@ interface OpenAPISchema extends BaseSchema {
   schema?: BaseSchema;
 }
 
+/**
+ * Processes Zod schemas and TypeScript types to generate OpenAPI specifications
+ */
 export class SchemaProcessor {
   private schemaDir: string;
   private typeDefinitions: any = {};
@@ -48,10 +51,20 @@ export class SchemaProcessor {
   private contentType: string = "";
   private processedSchemas: Set<string> = new Set();
 
+  /**
+   * Creates a new SchemaProcessor instance
+   * @param schemaDir - Directory containing schema definitions
+   */
   constructor(schemaDir: string) {
     this.schemaDir = path.resolve(schemaDir);
   }
 
+  /**
+   * Finds and processes a schema definition by name
+   * @param schemaName - Name of the schema to find
+   * @param contentType - Type of content (params, body, response)
+   * @returns The processed schema node or null if not found
+   */
   public findSchemaDefinition(schemaName: string, contentType: string) {
     console.log('🔎 Finding schema definition:', schemaName);
     let schemaNode: t.Node | null = null;
@@ -60,6 +73,11 @@ export class SchemaProcessor {
     return schemaNode;
   }
 
+  /**
+   * Recursively scans a directory for schema definitions
+   * @param dir - Directory to scan
+   * @param schemaName - Name of the schema to find
+   */
   private scanSchemaDir(dir: string, schemaName: string) {
     const files = fs.readdirSync(dir);
     files.forEach((file) => {
@@ -73,6 +91,11 @@ export class SchemaProcessor {
     });
   }
 
+  /**
+   * Processes a single schema file
+   * @param filePath - Path to the schema file
+   * @param schemaName - Name of the schema to process
+   */
   private processSchemaFile(filePath: string, schemaName: string) {
     console.log('📄 Processing schema file:', filePath);
     
@@ -117,6 +140,11 @@ export class SchemaProcessor {
     }
   }
 
+  /**
+   * Collects type definitions from an AST
+   * @param ast - Abstract Syntax Tree to process
+   * @param schemaName - Name of the schema to collect
+   */
   private collectTypeDefinitions(ast: any, schemaName: string) {
     if (!!this.typeDefinitions[schemaName]) return;
     
@@ -167,6 +195,11 @@ export class SchemaProcessor {
     });
   }
 
+  /**
+   * Processes a Zod type node into an OpenAPI schema
+   * @param node - Zod type node to process
+   * @returns OpenAPI schema representation
+   */
   private processZodType(node: any): OpenAPISchema {
     console.log('🔍 Processing Zod Type:', {
       nodeType: node?.type,
@@ -554,6 +587,11 @@ export class SchemaProcessor {
     return {};
   }
 
+  /**
+   * Processes a Zod object type into an OpenAPI schema
+   * @param node - Zod object node to process
+   * @returns OpenAPI schema representation of the object
+   */
   private processZodObject(node: any): OpenAPISchema {
     console.log('🏗️ Processing Zod object:', {
       hasProperties: !!node?.properties,
@@ -627,10 +665,20 @@ export class SchemaProcessor {
     return result;
   }
 
+  /**
+   * Checks if a node is an object type
+   * @param node - Node to check
+   * @returns True if the node is an object type
+   */
   private isObjectType(node) {
       return node?.type === 'object';
   }
 
+  /**
+   * Resolves a type name to its OpenAPI schema representation
+   * @param typeName - Name of the type to resolve
+   * @returns OpenAPI schema representation of the type
+   */
   private resolveType(typeName: string) {
     const typeNode = this.typeDefinitions[typeName.toString()];
     if (!typeNode) return {};
@@ -675,6 +723,11 @@ export class SchemaProcessor {
     return {};
   }
 
+  /**
+   * Resolves a TypeScript node type to its OpenAPI schema representation
+   * @param node - TypeScript node to resolve
+   * @returns OpenAPI schema representation of the type
+   */
   resolveTSNodeType(node) {
     if (t.isTSStringKeyword(node)) return { type: "string" };
     if (t.isTSNumberKeyword(node)) return { type: "number" };
@@ -724,6 +777,11 @@ export class SchemaProcessor {
     return {};
   }
 
+  /**
+   * Processes a TypeScript enum declaration into an OpenAPI schema
+   * @param enumNode - TypeScript enum declaration to process
+   * @returns OpenAPI schema representation of the enum
+   */
   private processEnum(enumNode: t.TSEnumDeclaration): object {
     // Initialization OpenAPI enum object
     const enumSchema = {
@@ -753,6 +811,11 @@ export class SchemaProcessor {
     return enumSchema;
   }
 
+  /**
+   * Gets property options from a TypeScript property signature
+   * @param node - TypeScript property signature to process
+   * @returns Property options for OpenAPI schema
+   */
   private getPropertyOptions(node) {
     const key = node.key.name;
     const isOptional = !!node.optional; // check if property is optional
@@ -779,6 +842,11 @@ export class SchemaProcessor {
     return options;
   }
 
+  /**
+   * Gets schema content for a route
+   * @param params - Object containing paramsType, bodyType, and responseType
+   * @returns Object containing requestBody, responses, and params schemas
+   */
   public getSchemaContent({ paramsType, bodyType, responseType }) {
     console.log('🔍 Getting schema content for:', { paramsType, bodyType, responseType });
     
@@ -844,6 +912,11 @@ export class SchemaProcessor {
     };
   }
 
+  /**
+   * Creates a request parameters schema from an OpenAPI schema
+   * @param params - OpenAPI schema to convert to parameters
+   * @returns Parameters schema
+   */
   public createRequestParamsSchema(params: OpenAPISchema): Params {
     console.log('🔧 Creating request params schema from:', params);
     const queryParams: Property[] = [];
@@ -885,6 +958,11 @@ export class SchemaProcessor {
     return result;
   }
 
+  /**
+   * Creates a request body schema from an OpenAPI schema
+   * @param body - OpenAPI schema to convert to request body
+   * @returns Request body schema
+   */
   public createRequestBodySchema(body: OpenAPISchema) {
     console.log('🔧 Creating request body schema from:', body);
     const result = {
@@ -898,6 +976,11 @@ export class SchemaProcessor {
     return result;
   }
 
+  /**
+   * Creates a response schema from an OpenAPI schema
+   * @param responses - OpenAPI schema to convert to response
+   * @returns Response schema
+   */
   public createResponseSchema(responses: OpenAPISchema) {
     console.log('🔧 Creating response schema from:', responses);
     const result = {
@@ -914,6 +997,11 @@ export class SchemaProcessor {
     return result;
   }
 
+  /**
+   * Gets a schema reference by name
+   * @param schemaName - Name of the schema to get
+   * @returns OpenAPI schema or undefined if not found
+   */
   private getSchemaReference(schemaName: string): OpenAPISchema | undefined {
     console.log('🔍 Getting schema reference:', schemaName);
     
